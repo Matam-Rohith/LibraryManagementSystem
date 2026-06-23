@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: library-management-system
+    env: docker
+    region: oregon
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:10000
+      - key: ConnectionStrings__DefaultConnection
+        sync: false   # Set manually in Render dashboard
+      - key: Jwt__Key
+        sync: false   # Set manually in Render dashboard
+      - key: Jwt__Issuer
+        value: LibraryManagementSystemAPI
+      - key: Jwt__Audience
+        value: LibraryManagementSystemClient
