@@ -1,10 +1,10 @@
-# 📚 Library Management System — ASP.NET Core 8 Web API
+# Library Management System — ASP.NET Core 8 Web API
 
 A production-ready Library Management System built with **ASP.NET Core 8**, **Entity Framework Core**, **SQL Server**, and **JWT Authentication**.
 
 [![.NET CI/CD](https://github.com/Matam-Rohith/LibraryManagementSystem/actions/workflows/dotnet.yml/badge.svg)](https://github.com/Matam-Rohith/LibraryManagementSystem/actions/workflows/dotnet.yml)
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -20,7 +20,7 @@ A production-ready Library Management System built with **ASP.NET Core 8**, **En
 
 ---
 
-## 🚀 Getting Started (Local)
+## Getting Started (Local)
 
 ```bash
 git clone https://github.com/Matam-Rohith/LibraryManagementSystem.git
@@ -34,7 +34,7 @@ Open Swagger at: `https://localhost:7001/swagger`
 
 ---
 
-## 🚂 Deploy on Railway (Free)
+## Deploy on Railway (Free)
 
 1. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub Repo**
 2. Select `Matam-Rohith/LibraryManagementSystem`
@@ -49,12 +49,12 @@ Open Swagger at: `https://localhost:7001/swagger`
 | `Jwt__Audience` | `LibraryManagementSystemClient` |
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
 
-5. Railway auto-detects the `Dockerfile` and deploys 🎉
+5. Railway auto-detects the `Dockerfile` and deploys
 6. For **GitHub Actions auto-deploy**: copy your Railway token from dashboard → add as GitHub Secret `RAILWAY_TOKEN`
 
 ---
 
-## 🎨 Deploy on Render (Free)
+## Deploy on Render (Free)
 
 1. Go to [render.com](https://render.com) → **New Web Service** → Connect GitHub repo
 2. Render auto-detects `render.yaml` and configures the service
@@ -66,11 +66,11 @@ Open Swagger at: `https://localhost:7001/swagger`
 | `Jwt__Key` | *(any strong secret, 32+ chars)* |
 
 4. Add a **PostgreSQL** database from Render dashboard (free tier)
-5. Deploy! Your API will be live at `https://library-management-system.onrender.com`
+5. Deploy — your API will be live at `https://library-management-system.onrender.com`
 
 ---
 
-## 🔐 Default Admin
+## Default Admin
 
 | Email | Password |
 |---|---|
@@ -78,7 +78,7 @@ Open Swagger at: `https://localhost:7001/swagger`
 
 ---
 
-## 📡 API Endpoints
+## API Endpoints
 
 | Method | Endpoint | Role |
 |---|---|---|
@@ -95,6 +95,6 @@ Open Swagger at: `https://localhost:7001/swagger`
 
 ---
 
-## 👤 Author
+## Author
 
 **Matam Rohith** — [GitHub](https://github.com/Matam-Rohith) | [Portfolio](https://rohith-portfolio-six.vercel.app/)
