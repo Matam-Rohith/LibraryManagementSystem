@@ -107,16 +107,20 @@ builder.Services.AddCors(opt =>
 
 var app = builder.Build();
 
-// Seed roles and admin
+// Initialize database: create schema and seed data
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
+
+    // Use EnsureCreated to create tables if they don't exist (no migrations needed)
+    await db.Database.EnsureCreatedAsync();
+
     foreach (var role in new[] { "Admin", "Member" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
+
     if (await userManager.FindByEmailAsync("admin@library.com") == null)
     {
         var admin = new User
