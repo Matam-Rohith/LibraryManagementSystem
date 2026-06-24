@@ -16,12 +16,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Database — supports both SQL Server (dev) and PostgreSQL (production/Render)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+bool isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
     || connectionString.Contains("postgresql", StringComparison.OrdinalIgnoreCase)
-    || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase))
+    || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase);
+
+if (isPostgres)
 {
     builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseNpgsql(connectionString));
+        opt.UseNpgsql(connectionString,
+            npgsqlOpt => npgsqlOpt.EnableRetryOnFailure(3)));
 }
 else
 {
@@ -110,28 +113,45 @@ var app = builder.Build();
 // Initialize database: create schema and seed data
 using (var scope = app.Services.CreateScope())
 {
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    // Use EnsureCreated to create tables if they don't exist (no migrations needed)
-    await db.Database.EnsureCreatedAsync();
-
-    foreach (var role in new[] { "Admin", "Member" })
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
-
-    if (await userManager.FindByEmailAsync("admin@library.com") == null)
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
     {
-        var admin = new User
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        logger.LogInformation("Applying database schema...");
+        // For PostgreSQL on Render: delete and recreate to ensure fresh schema
+        if (isPostgres)
         {
-            FullName = "Library Admin",
-            Email = "admin@library.com",
-            UserName = "admin@library.com",
-            MembershipId = "LIB-ADMIN-001"
-        };
-        await userManager.CreateAsync(admin, "Admin@123456");
-        await userManager.AddToRoleAsync(admin, "Admin");
+            await db.Database.EnsureDeletedAsync();
+        }
+        await db.Database.EnsureCreatedAsync();
+        logger.LogInformation("Database schema created.");
+
+        foreach (var role in new[] { "Admin", "Member" })
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
+
+        if (await userManager.FindByEmailAsync("admin@library.com") == null)
+        {
+            var admin = new User
+            {
+                FullName = "Library Admin",
+                Email = "admin@library.com",
+                UserName = "admin@library.com",
+                MembershipId = "LIB-ADMIN-001"
+            };
+            await userManager.CreateAsync(admin, "Admin@123456");
+            await userManager.AddToRoleAsync(admin, "Admin");
+        }
+        logger.LogInformation("Database seeded successfully.");
+    }
+    catch (Exception ex)
+    {
+        var logger2 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger2.LogError(ex, "Database initialization failed: {Message}", ex.Message);
+        throw;
     }
 }
 
