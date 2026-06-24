@@ -58,6 +58,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
+
 builder.Services.AddAuthorization();
 
 // Repositories
@@ -67,11 +68,11 @@ builder.Services.AddScoped<IFineRepository, FineRepository>();
 builder.Services.AddScoped<IReservationRepository, ReservationRepository>();
 
 // Services
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<IBorrowService, BorrowService>();
 builder.Services.AddScoped<IFineService, FineService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Swagger
 builder.Services.AddControllers();
@@ -121,12 +122,10 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         logger.LogInformation("Applying database schema...");
-        // For PostgreSQL on Render: delete and recreate to ensure fresh schema
-        if (isPostgres)
-        {
-            await db.Database.EnsureDeletedAsync();
-        }
+
+        // FIX: Removed EnsureDeletedAsync - was wiping the entire DB on every restart!
         await db.Database.EnsureCreatedAsync();
+
         logger.LogInformation("Database schema created.");
 
         foreach (var role in new[] { "Admin", "Member" })
@@ -145,6 +144,7 @@ using (var scope = app.Services.CreateScope())
             await userManager.CreateAsync(admin, "Admin@123456");
             await userManager.AddToRoleAsync(admin, "Admin");
         }
+
         logger.LogInformation("Database seeded successfully.");
     }
     catch (Exception ex)
@@ -166,7 +166,11 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+// FIX: Redirect root URL to Swagger UI for easy access
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
 app.Run();
