@@ -14,9 +14,20 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database
-builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Database — supports both SQL Server (dev) and PostgreSQL (production/Render)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+    || connectionString.Contains("postgresql", StringComparison.OrdinalIgnoreCase)
+    || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddDbContext<AppDbContext>(opt =>
+        opt.UseNpgsql(connectionString));
+}
+else
+{
+    builder.Services.AddDbContext<AppDbContext>(opt =>
+        opt.UseSqlServer(connectionString));
+}
 
 // Identity
 builder.Services.AddIdentity<User, IdentityRole>(opt =>
@@ -44,7 +55,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
-
 builder.Services.AddAuthorization();
 
 // Repositories
@@ -71,7 +81,6 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1",
         Description = "ASP.NET Core 8 Web API for managing library books, members, borrowing, returns, reservations, and fines."
     });
-
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -80,7 +89,6 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -105,13 +113,10 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
     await db.Database.MigrateAsync();
-
     foreach (var role in new[] { "Admin", "Member" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
-
     if (await userManager.FindByEmailAsync("admin@library.com") == null)
     {
         var admin = new User
@@ -129,11 +134,13 @@ using (var scope = app.Services.CreateScope())
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseCors("AllowAll");
 
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments for API discoverability
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
