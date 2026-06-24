@@ -20,8 +20,10 @@ public class AppDbContext : IdentityDbContext<User>
         builder.Entity<Book>()
             .HasIndex(b => b.ISBN).IsUnique();
 
+        // FIX: Changed decimal(18,2) to numeric(18,2) for PostgreSQL compatibility
+        // numeric(18,2) works on both PostgreSQL and SQL Server
         builder.Entity<Fine>()
-            .Property(f => f.Amount).HasColumnType("decimal(18,2)");
+            .Property(f => f.Amount).HasColumnType("numeric(18,2)");
 
         builder.Entity<BorrowRecord>()
             .HasOne(b => b.Fine)
