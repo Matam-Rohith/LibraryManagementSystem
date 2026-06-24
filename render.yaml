@@ -10,11 +10,11 @@ services:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ASPNETCORE_URLS
-        value: http://+:10000
+        value: http://+:8080
       - key: ConnectionStrings__DefaultConnection
-        sync: false   # Set manually in Render dashboard
+        sync: false
       - key: Jwt__Key
-        sync: false   # Set manually in Render dashboard
+        sync: false
       - key: Jwt__Issuer
         value: LibraryManagementSystemAPI
       - key: Jwt__Audience
