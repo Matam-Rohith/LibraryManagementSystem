@@ -1,39 +1,38 @@
-# AWS ECS Fargate Deployment Guide
+# AWS ECS Fargate Deployment
 
-This guide walks you through deploying the Library Management System to AWS ECS Fargate.
+Steps to deploy the Library Management System on AWS ECS Fargate.
 
-## Prerequisites
+## Requirements
 - AWS CLI configured (`aws configure`)
 - Docker installed
 - An AWS account
 
 ## Architecture
+
 ```
-Internet → ALB (port 80/443) → ECS Fargate (port 8080)
-                                    ↓              ↓
-                              RDS PostgreSQL    MongoDB Atlas
-                              (ap-south-1)     (free tier)
+Internet -> ALB (port 80/443) -> ECS Fargate (port 8080)
+                                      |              |
+                               RDS PostgreSQL    MongoDB Atlas
 ```
 
 ## Step 1: Create ECR Repository
+
 ```bash
 aws ecr create-repository --repository-name library-management-system --region ap-south-1
 ```
 
-## Step 2: Build & Push Docker Image
+## Step 2: Build and Push Docker Image
+
 ```bash
-# Authenticate
 aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin YOUR_ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com
 
-# Build & tag
 docker build -t library-management-system .
 docker tag library-management-system:latest YOUR_ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/library-management-system:latest
-
-# Push
 docker push YOUR_ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/library-management-system:latest
 ```
 
-## Step 3: Create RDS PostgreSQL
+## Step 3: Create RDS PostgreSQL Instance
+
 ```bash
 aws rds create-db-instance \
   --db-instance-identifier library-db \
@@ -45,7 +44,8 @@ aws rds create-db-instance \
   --region ap-south-1
 ```
 
-## Step 4: Store Secrets in AWS Secrets Manager
+## Step 4: Store Secrets
+
 ```bash
 aws secretsmanager create-secret --name library/db-connection \
   --secret-string "Host=YOUR_RDS_ENDPOINT;Database=LibraryDb;Username=postgres;Password=YOUR_PASSWORD"
@@ -54,21 +54,22 @@ aws secretsmanager create-secret --name library/mongo-connection \
   --secret-string "YOUR_MONGODB_ATLAS_CONNECTION_STRING"
 
 aws secretsmanager create-secret --name library/jwt-key \
-  --secret-string "YOUR_SUPER_SECURE_32_CHAR_JWT_KEY"
+  --secret-string "YOUR_JWT_KEY_MIN_32_CHARS"
 ```
 
 ## Step 5: Register ECS Task Definition
+
+Update `aws/task-definition.json` with your AWS account ID, then run:
+
 ```bash
-# Update task-definition.json with your account ID first
 aws ecs register-task-definition --cli-input-json file://aws/task-definition.json --region ap-south-1
 ```
 
-## Step 6: Create ECS Cluster & Service
+## Step 6: Create ECS Cluster and Service
+
 ```bash
-# Create cluster
 aws ecs create-cluster --cluster-name library-cluster --region ap-south-1
 
-# Create service (update subnet/security group IDs)
 aws ecs create-service \
   --cluster library-cluster \
   --service-name library-api \
@@ -79,16 +80,18 @@ aws ecs create-service \
   --region ap-south-1
 ```
 
-## GitHub Actions Auto-Deploy
-Add these secrets to your GitHub repository:
+## GitHub Secrets for CI/CD
+
+Add these to your GitHub repository settings under Actions secrets:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION` = `ap-south-1`
-- `ECR_REPOSITORY` = your ECR URI
+- `AWS_REGION` — set to `ap-south-1`
+- `ECR_REPOSITORY` — your ECR repository URI
 
-## Free Tier Alternative: Render.com
-The existing `render.yaml` in the repo deploys automatically from GitHub.
-Just connect your repo at https://render.com — no credit card needed.
+## Alternative: Render.com
+
+The `render.yaml` in the repo root deploys automatically when you connect the repo at https://render.com.
 
 ## MongoDB
-Use [MongoDB Atlas Free Tier](https://www.mongodb.com/cloud/atlas) (512MB free) for production activity logs.
+
+Use [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) free tier (512 MB) for the activity logs database.

@@ -12,9 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
-using System.Reflection;
 
-// Serilog bootstrap
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
@@ -26,7 +24,6 @@ builder.Host.UseSerilog((ctx, lc) => lc
     .WriteTo.Console()
     .Enrich.FromLogContext());
 
-// PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 bool isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
     || connectionString.Contains("postgresql", StringComparison.OrdinalIgnoreCase)
@@ -38,7 +35,6 @@ if (isPostgres)
 else
     builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(connectionString));
 
-// Identity
 builder.Services.AddIdentity<User, IdentityRole>(opt =>
 {
     opt.Password.RequireDigit = true;
@@ -48,7 +44,6 @@ builder.Services.AddIdentity<User, IdentityRole>(opt =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// JWT
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
@@ -71,30 +66,23 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("MemberOrAdmin", policy => policy.RequireRole("Admin", "Member"));
 });
 
-// Repositories
 builder.Services.AddScoped<IBookRepository, BookRepository>();
 builder.Services.AddScoped<IBorrowRepository, BorrowRepository>();
 builder.Services.AddScoped<IFineRepository, FineRepository>();
 builder.Services.AddScoped<IReservationRepository, ReservationRepository>();
 
-// Services
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<IBorrowService, BorrowService>();
 builder.Services.AddScoped<IFineService, FineService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// MongoDB Activity Logs
 builder.Services.AddSingleton<IActivityLogService, ActivityLogService>();
-
-// Open Library external API (HttpClient)
 builder.Services.AddHttpClient<IOpenLibraryService, OpenLibraryService>();
 
-// Health checks
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString, name: "postgresql", tags: new[] { "db" });
 
-// Swagger with annotations + XML docs
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -103,14 +91,8 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Library Management System API",
         Version = "v1",
-        Description = "ASP.NET Core 8 Web API for managing library books, members, borrowing, returns, reservations, and fines.\n\n" +
-                      "**Roles:** Admin (full access), Member (read + borrow/reserve)\n\n" +
-                      "**External API:** Open Library integration for book metadata\n\n" +
-                      "**Activity Logs:** All actions logged to MongoDB",
-        Contact = new OpenApiContact { Name = "Matam Rohith", Url = new Uri("https://github.com/Matam-Rohith") },
-        License = new OpenApiLicense { Name = "MIT" }
+        Description = "ASP.NET Core 8 API for managing books, members, borrowing, reservations, and fines."
     });
-    c.EnableAnnotations();
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -144,11 +126,13 @@ using (var scope = app.Services.CreateScope())
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        logger.LogInformation("Applying database schema...");
+
         await db.Database.EnsureCreatedAsync();
+
         foreach (var role in new[] { "Admin", "Member" })
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
+
         if (await userManager.FindByEmailAsync("admin@library.com") == null)
         {
             var admin = new User
@@ -161,7 +145,6 @@ using (var scope = app.Services.CreateScope())
             await userManager.CreateAsync(admin, "Admin@123456");
             await userManager.AddToRoleAsync(admin, "Admin");
         }
-        logger.LogInformation("Database seeded successfully.");
     }
     catch (Exception ex)
     {
@@ -179,8 +162,6 @@ app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1");
     c.RoutePrefix = "swagger";
-    c.DocumentTitle = "Library API Docs";
-    c.DisplayRequestDuration();
 });
 
 app.MapGet("/", () => Results.Redirect("/swagger"));

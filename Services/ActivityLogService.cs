@@ -16,7 +16,6 @@ public class ActivityLogService : IActivityLogService
         var database = client.GetDatabase(dbName);
         _logs = database.GetCollection<ActivityLog>("activity_logs");
 
-        // TTL index: auto-delete logs older than 90 days
         var ttlIndex = new CreateIndexModel<ActivityLog>(
             Builders<ActivityLog>.IndexKeys.Ascending(x => x.Timestamp),
             new CreateIndexOptions { ExpireAfter = TimeSpan.FromDays(90) });

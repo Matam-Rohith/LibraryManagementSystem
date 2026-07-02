@@ -3,7 +3,6 @@ using LibraryManagementSystem.Services.Interfaces;
 
 namespace LibraryManagementSystem.Services;
 
-/// <summary>Integrates with the Open Library public API (https://openlibrary.org/developers/api)</summary>
 public class OpenLibraryService : IOpenLibraryService
 {
     private readonly HttpClient _http;
@@ -59,7 +58,7 @@ public class OpenLibraryService : IOpenLibraryService
             var authors = book.TryGetProperty("authors", out var a)
                 ? a.EnumerateArray().Select(x => x.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "").ToList()
                 : new List<string>();
-            var coverUrl = book.TryGetProperty("cover", out var c) && c.TryGetProperty("medium", out var m) ? m.GetString() : null;
+            var coverUrl = book.TryGetProperty("cover", out var cv) && cv.TryGetProperty("medium", out var m) ? m.GetString() : null;
             return new OpenLibraryBook(title, authors, null, coverUrl, isbn, null);
         }
         catch (Exception ex)

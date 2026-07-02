@@ -3,7 +3,6 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace LibraryManagementSystem.Models;
 
-/// <summary>MongoDB document for auditing all user actions in the system.</summary>
 public class ActivityLog
 {
     [BsonId]
