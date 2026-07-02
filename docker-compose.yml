@@ -9,13 +9,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=LibraryDb;Username=postgres;Password=postgres123
-      - MongoDB__ConnectionString=mongodb://mongo:27017
-      - MongoDB__DatabaseName=LibraryLogs
-      - Jwt__Key=SuperSecretKey_ChangeMeInProduction_32chars!
-      - Jwt__Issuer=LibraryManagementSystem
-      - Jwt__Audience=LibraryManagementSystem
+      - DATABASE_URL=postgresql://postgres:postgres123@postgres:5432/LibraryDb
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DB_NAME=LibraryLogs
+      - JWT_SECRET_KEY=your-jwt-secret-change-in-production
+      - SECRET_KEY=your-flask-secret-change-in-production
+    command: >  
+      sh -c "python seed.py && gunicorn --bind 0.0.0.0:8080 --workers 4 --timeout 120 run:app"
     depends_on:
       postgres:
         condition: service_healthy
