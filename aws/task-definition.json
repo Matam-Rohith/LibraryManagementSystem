@@ -1,0 +1,46 @@
+{
+  "family": "library-management-system",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "library-api",
+      "image": "ghcr.io/matam-rohith/librarymanagementsystem:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production" },
+        { "name": "ASPNETCORE_URLS", "value": "http://+:8080" }
+      ],
+      "secrets": [
+        { "name": "ConnectionStrings__DefaultConnection", "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT:secret:library/db-connection" },
+        { "name": "MongoDB__ConnectionString", "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT:secret:library/mongo-connection" },
+        { "name": "Jwt__Key", "valueFrom": "arn:aws:secretsmanager:ap-south-1:YOUR_ACCOUNT:secret:library/jwt-key" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/library-management-system",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

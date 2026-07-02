@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: library_api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=LibraryDb;Username=postgres;Password=postgres123
+      - MongoDB__ConnectionString=mongodb://mongo:27017
+      - MongoDB__DatabaseName=LibraryLogs
+      - Jwt__Key=SuperSecretKey_ChangeMeInProduction_32chars!
+      - Jwt__Issuer=LibraryManagementSystem
+      - Jwt__Audience=LibraryManagementSystem
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    networks:
+      - library_net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: library_postgres
+    environment:
+      POSTGRES_DB: LibraryDb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - library_net
+
+  mongo:
+    image: mongo:7.0
+    container_name: library_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - library_net
+
+volumes:
+  postgres_data:
+  mongo_data:
+
+networks:
+  library_net:
+    driver: bridge

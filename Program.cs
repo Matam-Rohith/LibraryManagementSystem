@@ -10,27 +10,33 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Serilog;
 using System.Text;
+using System.Reflection;
+
+// Serilog bootstrap
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database — supports both SQL Server (dev) and PostgreSQL (production/Render)
+builder.Host.UseSerilog((ctx, lc) => lc
+    .ReadFrom.Configuration(ctx.Configuration)
+    .WriteTo.Console()
+    .Enrich.FromLogContext());
+
+// PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 bool isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
     || connectionString.Contains("postgresql", StringComparison.OrdinalIgnoreCase)
     || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase);
 
 if (isPostgres)
-{
     builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseNpgsql(connectionString,
-            npgsqlOpt => npgsqlOpt.EnableRetryOnFailure(3)));
-}
+        opt.UseNpgsql(connectionString, o => o.EnableRetryOnFailure(3)));
 else
-{
-    builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseSqlServer(connectionString));
-}
+    builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(connectionString));
 
 // Identity
 builder.Services.AddIdentity<User, IdentityRole>(opt =>
@@ -42,7 +48,7 @@ builder.Services.AddIdentity<User, IdentityRole>(opt =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// JWT Auth
+// JWT
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
@@ -59,7 +65,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("MemberOrAdmin", policy => policy.RequireRole("Admin", "Member"));
+});
 
 // Repositories
 builder.Services.AddScoped<IBookRepository, BookRepository>();
@@ -74,7 +84,17 @@ builder.Services.AddScoped<IFineService, FineService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// Swagger
+// MongoDB Activity Logs
+builder.Services.AddSingleton<IActivityLogService, ActivityLogService>();
+
+// Open Library external API (HttpClient)
+builder.Services.AddHttpClient<IOpenLibraryService, OpenLibraryService>();
+
+// Health checks
+builder.Services.AddHealthChecks()
+    .AddNpgSql(connectionString, name: "postgresql", tags: new[] { "db" });
+
+// Swagger with annotations + XML docs
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -83,8 +103,14 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Library Management System API",
         Version = "v1",
-        Description = "ASP.NET Core 8 Web API for managing library books, members, borrowing, returns, reservations, and fines."
+        Description = "ASP.NET Core 8 Web API for managing library books, members, borrowing, returns, reservations, and fines.\n\n" +
+                      "**Roles:** Admin (full access), Member (read + borrow/reserve)\n\n" +
+                      "**External API:** Open Library integration for book metadata\n\n" +
+                      "**Activity Logs:** All actions logged to MongoDB",
+        Contact = new OpenApiContact { Name = "Matam Rohith", Url = new Uri("https://github.com/Matam-Rohith") },
+        License = new OpenApiLicense { Name = "MIT" }
     });
+    c.EnableAnnotations();
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -105,13 +131,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// CORS
 builder.Services.AddCors(opt =>
     opt.AddPolicy("AllowAll", p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 
 var app = builder.Build();
 
-// Initialize database: create schema and seed data
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
@@ -120,18 +144,11 @@ using (var scope = app.Services.CreateScope())
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         logger.LogInformation("Applying database schema...");
-
-        // FIX: Removed EnsureDeletedAsync - was wiping the entire DB on every restart!
         await db.Database.EnsureCreatedAsync();
-
-        logger.LogInformation("Database schema created.");
-
         foreach (var role in new[] { "Admin", "Member" })
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
-
         if (await userManager.FindByEmailAsync("admin@library.com") == null)
         {
             var admin = new User
@@ -144,30 +161,30 @@ using (var scope = app.Services.CreateScope())
             await userManager.CreateAsync(admin, "Admin@123456");
             await userManager.AddToRoleAsync(admin, "Admin");
         }
-
         logger.LogInformation("Database seeded successfully.");
     }
     catch (Exception ex)
     {
-        var logger2 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger2.LogError(ex, "Database initialization failed: {Message}", ex.Message);
+        Log.Fatal(ex, "Database initialization failed.");
         throw;
     }
 }
 
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseCors("AllowAll");
+app.UseSerilogRequestLogging();
 
-// Enable Swagger in all environments for API discoverability
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1");
     c.RoutePrefix = "swagger";
+    c.DocumentTitle = "Library API Docs";
+    c.DisplayRequestDuration();
 });
 
-// FIX: Redirect root URL to Swagger UI for easy access
 app.MapGet("/", () => Results.Redirect("/swagger"));
+app.MapHealthChecks("/health");
 
 app.UseAuthentication();
 app.UseAuthorization();
