@@ -31,21 +31,21 @@ REST API for managing library operations built with Python and Flask.
 
 ```
 .
-├── app/
-│   ├── __init__.py         # App factory
-│   ├── models/             # SQLAlchemy models (User, Book, BorrowRecord, Reservation, Fine)
-│   ├── routes/             # Flask Blueprints (auth, books, borrow, reservations, fines, logs, openlibrary)
-│   ├── services/           # Business logic (activity_log_service)
-│   └── utils/              # Decorators (admin_required)
-├── tests/                  # pytest tests
-├── config.py               # Config and TestingConfig
-├── run.py                  # App entrypoint
-├── seed.py                 # DB seeder (roles + admin user)
-├── requirements.txt
-├── requirements-test.txt
-├── Dockerfile
-├── docker-compose.yml
-└── .github/workflows/ci-cd.yml
++-- app/
+|   +-- __init__.py         # App factory
+|   +-- models/             # SQLAlchemy models (User, Book, BorrowRecord, Reservation, Fine)
+|   +-- routes/             # Flask Blueprints (auth, books, borrow, reservations, fines, logs, openlibrary)
+|   +-- services/           # Business logic (activity_log_service)
+|   +-- utils/              # Decorators (admin_required)
++-- tests/                  # pytest tests
++-- config.py               # Config and TestingConfig
++-- run.py                  # App entrypoint
++-- seed.py                 # DB seeder (roles + admin user)
++-- requirements.txt
++-- requirements-test.txt
++-- Dockerfile
++-- docker-compose.yml
++-- .github/workflows/ci-cd.yml
 ```
 
 ## Running Locally with Docker
@@ -62,16 +62,16 @@ Swagger UI: http://localhost:8080/apidocs
 Health check: http://localhost:8080/health
 
 Default admin account:
-- Email: `admin@library.com`
-- Password: `Admin@123456`
+- Email: admin@library.com
+- Password: Admin@123456
 
 ## Running Locally without Docker
 
 ```bash
 python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # fill in your values
+cp .env.example .env
 python seed.py
 python run.py
 ```
@@ -123,15 +123,15 @@ pytest tests/ -v --cov=app
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `MONGO_URI` | MongoDB connection string |
-| `MONGO_DB_NAME` | MongoDB database name |
-| `JWT_SECRET_KEY` | JWT signing key |
-| `SECRET_KEY` | Flask session secret |
+| DATABASE_URL | PostgreSQL connection string |
+| MONGO_URI | MongoDB connection string |
+| MONGO_DB_NAME | MongoDB database name |
+| JWT_SECRET_KEY | JWT signing key |
+| SECRET_KEY | Flask session secret |
 
 ## AWS Deployment
 
-See [aws/README-AWS-Deployment.md](aws/README-AWS-Deployment.md) for deploying to AWS ECS Fargate.
+See aws/README-AWS-Deployment.md for deploying to AWS ECS Fargate.
 
 ## License
 

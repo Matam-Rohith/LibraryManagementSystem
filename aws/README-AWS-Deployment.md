@@ -3,7 +3,8 @@
 Steps to deploy the Library Management System on AWS ECS Fargate.
 
 ## Requirements
-- AWS CLI configured (`aws configure`)
+
+- AWS CLI configured (aws configure)
 - Docker installed
 - An AWS account
 
@@ -11,8 +12,8 @@ Steps to deploy the Library Management System on AWS ECS Fargate.
 
 ```
 Internet -> ALB (port 80/443) -> ECS Fargate (port 8080)
-                                      |              |
-                               RDS PostgreSQL    MongoDB Atlas
+                                      |
+                               RDS PostgreSQL + MongoDB Atlas
 ```
 
 ## Step 1: Create ECR Repository
@@ -48,7 +49,7 @@ aws rds create-db-instance \
 
 ```bash
 aws secretsmanager create-secret --name library/db-connection \
-  --secret-string "Host=YOUR_RDS_ENDPOINT;Database=LibraryDb;Username=postgres;Password=YOUR_PASSWORD"
+  --secret-string "postgresql://postgres:YOUR_PASSWORD@YOUR_RDS_ENDPOINT/LibraryDb"
 
 aws secretsmanager create-secret --name library/mongo-connection \
   --secret-string "YOUR_MONGODB_ATLAS_CONNECTION_STRING"
@@ -59,7 +60,7 @@ aws secretsmanager create-secret --name library/jwt-key \
 
 ## Step 5: Register ECS Task Definition
 
-Update `aws/task-definition.json` with your AWS account ID, then run:
+Update aws/task-definition.json with your AWS account ID, then run:
 
 ```bash
 aws ecs register-task-definition --cli-input-json file://aws/task-definition.json --region ap-south-1
@@ -83,15 +84,15 @@ aws ecs create-service \
 ## GitHub Secrets for CI/CD
 
 Add these to your GitHub repository settings under Actions secrets:
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION` — set to `ap-south-1`
-- `ECR_REPOSITORY` — your ECR repository URI
+- AWS_ACCESS_KEY_ID
+- AWS_SECRET_ACCESS_KEY
+- AWS_REGION set to ap-south-1
+- ECR_REPOSITORY set to your ECR repository URI
 
 ## Alternative: Render.com
 
-The `render.yaml` in the repo root deploys automatically when you connect the repo at https://render.com.
+Connect the repo at https://render.com for automatic deploys.
 
 ## MongoDB
 
-Use [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) free tier (512 MB) for the activity logs database.
+Use MongoDB Atlas free tier (512 MB) for the activity logs database.
