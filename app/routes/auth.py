@@ -1,52 +1,65 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
-from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
-from app.models.user import User, Role
-from app.services.activity_log_service import log_activity
+from app.models.user import User
+from werkzeug.security import check_password_hash
 
 auth_bp = Blueprint('auth', __name__)
-
-@auth_bp.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    required = ['full_name', 'email', 'password', 'membership_id']
-    if not all(k in data for k in required):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': 'Email already registered'}), 409
-
-    member_role = Role.query.filter_by(name='Member').first()
-    user = User(
-        full_name=data['full_name'],
-        email=data['email'],
-        membership_id=data['membership_id'],
-        password_hash=generate_password_hash(data['password']),
-        role_id=member_role.id
-    )
-    db.session.add(user)
-    db.session.commit()
-    return jsonify(user.to_dict()), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    user = User.query.filter_by(email=data.get('email')).first()
-    if not user or not check_password_hash(user.password_hash, data.get('password', '')):
-        return jsonify({'error': 'Invalid credentials'}), 401
-
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({'error': 'Invalid email or password'}), 401
     token = create_access_token(
         identity=str(user.id),
-        additional_claims={'role': user.role.name, 'email': user.email}
+        additional_claims={'email': user.email, 'role': user.role}
     )
-    log_activity('LOGIN', str(user.id), user.email, user.role.name,
-                 ip_address=request.remote_addr)
-    return jsonify({'access_token': token, 'user': user.to_dict()})
+    return jsonify({
+        'access_token': token,
+        'user': {
+            'id': user.id,
+            'full_name': user.full_name,
+            'email': user.email,
+            'role': user.role,
+            'membership_id': user.membership_id
+        }
+    })
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()
 def me():
-    user_id = get_jwt_identity()
-    user = User.query.get_or_404(int(user_id))
-    return jsonify(user.to_dict())
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
+    claims = get_jwt()
+    return jsonify({
+        'id': user.id,
+        'full_name': user.full_name,
+        'email': user.email,
+        'role': claims.get('role', user.role),
+        'membership_id': user.membership_id
+    })
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    required = ['email', 'password', 'full_name']
+    if not all(k in data for k in required):
+        return jsonify({'error': 'Missing required fields'}), 400
+    email = data['email'].strip().lower()
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already registered'}), 409
+    import uuid
+    user = User(
+        email=email,
+        full_name=data['full_name'],
+        membership_id='LIB-' + str(uuid.uuid4())[:8].upper(),
+        role='Member'
+    )
+    user.set_password(data['password'])
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({'message': 'Registered successfully', 'membership_id': user.membership_id}), 201

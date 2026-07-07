@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Library Management</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; }
+  nav {
+    background: #e8720c;
+    color: white;
+    padding: 14px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  nav .links a {
+    color: white;
+    text-decoration: none;
+    margin-left: 24px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  nav .links a:hover { text-decoration: underline; }
+  .page { display: none; padding: 32px; max-width: 1100px; margin: auto; }
+  .page.active { display: block; }
+  h2 { margin-bottom: 20px; color: #333; font-size: 22px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  th { background: #f0f0f0; padding: 13px 16px; text-align: left; font-weight: 700; font-size: 14px; border-bottom: 2px solid #ddd; }
+  td { padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 14px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+  .btn { padding: 7px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-orange { background: #e8720c; color: white; }
+  .btn-orange:hover { background: #c9600a; }
+  .btn-green { background: #2ecc71; color: white; }
+  .btn-green:hover { background: #27ae60; }
+  .btn-red { background: #e74c3c; color: white; }
+  .btn-red:hover { background: #c0392b; }
+  .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge-pending { background: #fff3cd; color: #856404; }
+  .badge-approved { background: #d1e7dd; color: #0f5132; }
+  .badge-returned { background: #cfe2ff; color: #084298; }
+  .empty-msg { text-align: center; color: #888; padding: 40px; font-size: 15px; }
+  /* Login */
+  .login-wrap { max-width: 400px; margin: 80px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+  .login-wrap h2 { text-align: center; margin-bottom: 28px; color: #e8720c; }
+  .form-group { margin-bottom: 18px; }
+  .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+  .form-group input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .form-group input:focus { outline: none; border-color: #e8720c; }
+  .btn-full { width: 100%; padding: 12px; font-size: 15px; }
+  .error-msg { color: #e74c3c; font-size: 13px; margin-top: 10px; text-align: center; }
+  /* Profile */
+  .profile-card { background: white; padding: 32px; border-radius: 10px; max-width: 500px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .profile-card p { margin-bottom: 14px; font-size: 15px; } 
+  .profile-card span { font-weight: 600; }
+  /* Search */
+  .search-bar { margin-bottom: 20px; display: flex; gap: 10px; }
+  .search-bar input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .search-bar input:focus { outline: none; border-color: #e8720c; }
+  .toast { position: fixed; bottom: 30px; right: 30px; background: #333; color: white; padding: 14px 22px; border-radius: 8px; font-size: 14px; display: none; z-index: 9999; }
+  .toast.success { background: #2ecc71; }
+  .toast.error { background: #e74c3c; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage" class="page active">
+  <div class="login-wrap">
+    <h2>Library Management</h2>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@library.com" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="Admin@123456" />
+    </div>
+    <button class="btn btn-orange btn-full" onclick="doLogin()">Login</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appShell" style="display:none">
+  <nav>
+    <span>Library Management</span>
+    <div class="links">
+      <a onclick="showPage('booksPage')">Books</a>
+      <a onclick="showPage('profilePage')">Profile</a>
+      <a onclick="showPage('ordersPage'); loadOrders()">My Orders</a>
+      <a onclick="showPage('returnPage'); loadReturns()">Return Books</a>
+      <a onclick="doLogout()">Logout</a>
+    </div>
+  </nav>
+
+  <!-- BOOKS PAGE -->
+  <div id="booksPage" class="page active">
+    <h2>Books Catalog</h2>
+    <div class="search-bar">
+      <input type="text" id="bookSearch" placeholder="Search by title or author..." oninput="filterBooks()" />
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Title</th><th>Author</th><th>Genre</th>
+          <th>ISBN</th><th>Available</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="booksTbody"><tr><td colspan="7" class="empty-msg">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- ORDERS PAGE -->
+  <div id="ordersPage" class="page">
+    <h2>My Orders</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Order ID</th><th>Description</th><th>Number of Books</th>
+          <th>Book Details</th><th>Approved</th><th>Return Date</th><th>Return</th>
+        </tr>
+      </thead>
+      <tbody id="ordersTbody"><tr><td colspan="7" class="empty-msg">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- RETURN BOOKS PAGE -->
+  <div id="returnPage" class="page">
+    <h2>Return Books</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Order ID</th><th>Book Title</th><th>Author</th>
+          <th>Borrowed On</th><th>Due Date</th><th>Status</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="returnTbody"><tr><td colspan="7" class="empty-msg">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- PROFILE PAGE -->
+  <div id="profilePage" class="page">
+    <h2>My Profile</h2>
+    <div class="profile-card">
+      <p>Name: <span id="pName">-</span></p>
+      <p>Email: <span id="pEmail">-</span></p>
+      <p>Role: <span id="pRole">-</span></p>
+      <p>Member ID: <span id="pMemberId">-</span></p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+let allBooks = [];
+let currentUser = null;
+
+function getToken() { return localStorage.getItem('lms_token'); }
+function setToken(t) { localStorage.setItem('lms_token', t); }
+function clearToken() { localStorage.removeItem('lms_token'); }
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+function showPage(id) {
+  document.querySelectorAll('#appShell .page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value.trim();
+  document.getElementById('loginError').textContent = '';
+  try {
+    const res = await fetch(API + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    setToken(data.access_token);
+    currentUser = data.user || { email, role: data.role };
+    document.getElementById('loginPage').classList.remove('active');
+    document.getElementById('appShell').style.display = 'block';
+    loadBooks();
+    loadProfile();
+  } catch(e) {
+    document.getElementById('loginError').textContent = e.message;
+  }
+}
+
+function doLogout() {
+  clearToken();
+  location.reload();
+}
+
+async function apiFetch(url, opts={}) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers||{}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + url, { ...opts, headers });
+  if (res.status === 401) { doLogout(); return null; }
+  return res;
+}
+
+// ---- BOOKS ----
+async function loadBooks() {
+  const res = await apiFetch('/api/books');
+  if (!res) return;
+  allBooks = await res.json();
+  renderBooks(allBooks);
+}
+
+function renderBooks(books) {
+  const tbody = document.getElementById('booksTbody');
+  if (!books.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No books found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = books.map(b => `
+    <tr>
+      <td>${b.id}</td>
+      <td><strong>${b.title}</strong></td>
+      <td>${b.author}</td>
+      <td>${b.genre || '-'}</td>
+      <td>${b.isbn}</td>
+      <td>${b.available_copies > 0
+        ? '<span class="badge badge-approved">' + b.available_copies + ' available</span>'
+        : '<span class="badge badge-pending">Unavailable</span>'}
+      </td>
+      <td>
+        ${b.available_copies > 0
+          ? `<button class="btn btn-orange" onclick="addToCart(${b.id}, '${b.title.replace(/'/g,"\\'")}')">Add to Cart</button>`
+          : '<button class="btn" style="background:#ccc;cursor:not-allowed" disabled>Unavailable</button>'}
+      </td>
+    </tr>`).join('');
+}
+
+function filterBooks() {
+  const q = document.getElementById('bookSearch').value.toLowerCase();
+  renderBooks(allBooks.filter(b =>
+    b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)
+  ));
+}
+
+async function addToCart(bookId, bookTitle) {
+  const res = await apiFetch('/api/borrow', {
+    method: 'POST',
+    body: JSON.stringify({ book_id: bookId, days: 14 })
+  });
+  if (!res) return;
+  if (res.ok) {
+    showToast(`"${bookTitle}" added to your orders!`, 'success');
+    loadBooks();
+    // refresh orders if visible
+    if (document.getElementById('ordersPage').classList.contains('active')) loadOrders();
+  } else {
+    const err = await res.json();
+    showToast(err.error || 'Failed to borrow', 'error');
+  }
+}
+
+// ---- ORDERS ----
+async function loadOrders() {
+  const tbody = document.getElementById('ordersTbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">Loading...</td></tr>';
+  const res = await apiFetch('/api/borrow');
+  if (!res) return;
+  const orders = await res.json();
+  if (!orders.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No orders yet. Browse books and click "Add to Cart".</td></tr>';
+    return;
+  }
+  tbody.innerHTML = orders.map(o => `
+    <tr>
+      <td>#${o.id}</td>
+      <td>${o.book_title || 'Book #' + o.book_id}</td>
+      <td>1</td>
+      <td>ID: ${o.book_id}${o.book_isbn ? ' &bull; ISBN: ' + o.book_isbn : ''}</td>
+      <td>${o.is_returned
+        ? '<span class="badge badge-returned">Returned</span>'
+        : '<span class="badge badge-approved">Approved</span>'}
+      </td>
+      <td>${o.due_date ? new Date(o.due_date).toLocaleDateString('en-IN') : '-'}</td>
+      <td>
+        ${!o.is_returned
+          ? `<button class="btn btn-red" onclick="returnBook(${o.id})">Return</button>`
+          : '<span style="color:#888;font-size:13px">Done</span>'}
+      </td>
+    </tr>`).join('');
+}
+
+// ---- RETURN BOOKS ----
+async function loadReturns() {
+  const tbody = document.getElementById('returnTbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">Loading...</td></tr>';
+  const res = await apiFetch('/api/borrow');
+  if (!res) return;
+  const orders = await res.json();
+  const active = orders.filter(o => !o.is_returned);
+  if (!active.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No active borrows to return.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = active.map(o => {
+    const due = new Date(o.due_date);
+    const today = new Date();
+    const overdue = today > due;
+    return `<tr>
+      <td>#${o.id}</td>
+      <td>${o.book_title || 'Book #' + o.book_id}</td>
+      <td>${o.book_author || '-'}</td>
+      <td>${new Date(o.borrowed_at).toLocaleDateString('en-IN')}</td>
+      <td style="color:${overdue ? '#e74c3c' : 'inherit'}">
+        ${due.toLocaleDateString('en-IN')}
+        ${overdue ? ' <span style="color:#e74c3c;font-size:12px">(Overdue)</span>' : ''}
+      </td>
+      <td><span class="badge badge-approved">Active</span></td>
+      <td><button class="btn btn-green" onclick="returnBook(${o.id})">Return</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function returnBook(recordId) {
+  if (!confirm('Confirm return of this book?')) return;
+  const res = await apiFetch(`/api/borrow/${recordId}/return`, { method: 'PUT' });
+  if (!res) return;
+  const data = await res.json();
+  if (res.ok) {
+    const fineMsg = data.fine > 0 ? ` Fine: ₹${data.fine}` : '';
+    showToast('Book returned successfully!' + fineMsg, 'success');
+    loadOrders();
+    loadReturns();
+    loadBooks();
+  } else {
+    showToast(data.error || 'Return failed', 'error');
+  }
+}
+
+// ---- PROFILE ----
+async function loadProfile() {
+  const res = await apiFetch('/api/auth/me');
+  if (!res || !res.ok) return;
+  const user = await res.json();
+  document.getElementById('pName').textContent = user.full_name || user.name || '-';
+  document.getElementById('pEmail').textContent = user.email || '-';
+  document.getElementById('pRole').textContent = user.role || '-';
+  document.getElementById('pMemberId').textContent = user.membership_id || '-';
+}
+
+// Auto-login if token exists
+window.onload = function() {
+  if (getToken()) {
+    document.getElementById('loginPage').classList.remove('active');
+    document.getElementById('appShell').style.display = 'block';
+    loadBooks();
+    loadProfile();
+  }
+};
+</script>
+</body>
+</html>
