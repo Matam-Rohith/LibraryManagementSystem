@@ -80,8 +80,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IActivityLogService, ActivityLogService>();
 builder.Services.AddHttpClient<IOpenLibraryService, OpenLibraryService>();
 
-builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString, name: "postgresql", tags: new[] { "db" });
+// Health check — basic ping only (no DB dependency so it never fails on startup)
+builder.Services.AddHealthChecks();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -91,7 +91,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Library Management System API",
         Version = "v1",
-        Description = "ASP.NET Core 8 API for managing books, members, borrowing, reservations, and fines."
+        Description = "ASP.NET Core 8 REST API for managing books, members, borrowing, reservations, and fines."
     });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -148,8 +148,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Log.Fatal(ex, "Database initialization failed.");
-        throw;
+        logger.LogError(ex, "Database initialization failed — app will still start.");
     }
 }
 

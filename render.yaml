@@ -5,6 +5,7 @@ services:
     region: oregon
     plan: free
     branch: main
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
@@ -16,7 +17,7 @@ services:
           name: library-db
           property: connectionString
       - key: Jwt__Key
-        generateValue: true
+        value: SuperSecretKey_LibraryMgmt_Render2024!
       - key: Jwt__Issuer
         value: LibraryManagementSystemAPI
       - key: Jwt__Audience
@@ -24,5 +25,6 @@ services:
 
 databases:
   - name: library-db
+    databaseName: librarydb
     plan: free
     region: oregon
