@@ -12,13 +12,29 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using Serilog;
 using System.Text;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
+
+static string NormalizePostgresConnectionString(string value)
+{
+    if (!value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) && !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)) return value;
+    var uri = new Uri(value);
+    var parts = uri.UserInfo.Split(':', 2);
+    return new NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host, Port = uri.Port > 0 ? uri.Port : 5432,
+        Username = Uri.UnescapeDataString(parts[0]),
+        Password = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty,
+        Database = uri.AbsolutePath.Trim('/'), SslMode = SslMode.Require, TrustServerCertificate = true
+    }.ConnectionString;
+}
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration).WriteTo.Console().Enrich.FromLogContext());
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("DefaultConnection is required.");
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("DefaultConnection is required.");
+var connectionString = NormalizePostgresConnectionString(rawConnectionString);
 bool isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase);
 if (isPostgres) builder.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(connectionString, o => o.EnableRetryOnFailure(3)));
 else builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(connectionString));
