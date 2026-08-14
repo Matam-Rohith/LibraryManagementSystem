@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using LibraryManagementSystem.Data;
 using LibraryManagementSystem.Middleware;
 using LibraryManagementSystem.Models;
@@ -13,161 +14,49 @@ using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
-
+Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration).WriteTo.Console().Enrich.FromLogContext());
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("DefaultConnection is required.");
+bool isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase);
+if (isPostgres) builder.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(connectionString, o => o.EnableRetryOnFailure(3)));
+else builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(connectionString));
 
-builder.Host.UseSerilog((ctx, lc) => lc
-    .ReadFrom.Configuration(ctx.Configuration)
-    .WriteTo.Console()
-    .Enrich.FromLogContext());
+builder.Services.AddIdentity<User, IdentityRole>(opt => { opt.Password.RequireDigit = true; opt.Password.RequiredLength = 8; opt.Password.RequireUppercase = true; }).AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
+var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is required.");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(opt => opt.TokenValidationParameters = new TokenValidationParameters { ValidateIssuer = true, ValidateAudience = true, ValidateLifetime = true, ValidateIssuerSigningKey = true, ValidIssuer = builder.Configuration["Jwt:Issuer"], ValidAudience = builder.Configuration["Jwt:Audience"], IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)) });
+builder.Services.AddAuthorization(options => { options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin")); options.AddPolicy("MemberOrAdmin", policy => policy.RequireRole("Admin", "Member")); });
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-bool isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
-    || connectionString.Contains("postgresql", StringComparison.OrdinalIgnoreCase)
-    || connectionString.Contains("postgres", StringComparison.OrdinalIgnoreCase);
-
-if (isPostgres)
-    builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseNpgsql(connectionString, o => o.EnableRetryOnFailure(3)));
-else
-    builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlServer(connectionString));
-
-builder.Services.AddIdentity<User, IdentityRole>(opt =>
-{
-    opt.Password.RequireDigit = true;
-    opt.Password.RequiredLength = 8;
-    opt.Password.RequireUppercase = true;
-})
-.AddEntityFrameworkStores<AppDbContext>()
-.AddDefaultTokenProviders();
-
-var jwtKey = builder.Configuration["Jwt:Key"]!;
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(opt =>
-    {
-        opt.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-        };
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
-    options.AddPolicy("MemberOrAdmin", policy => policy.RequireRole("Admin", "Member"));
-});
-
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = StatusCodes.Status429TooManyRequests; options.AddFixedWindowLimiter("api", limiter => { limiter.PermitLimit = 120; limiter.Window = TimeSpan.FromMinutes(1); limiter.QueueLimit = 0; }); });
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IBookRepository, BookRepository>();
 builder.Services.AddScoped<IBorrowRepository, BorrowRepository>();
 builder.Services.AddScoped<IFineRepository, FineRepository>();
 builder.Services.AddScoped<IReservationRepository, ReservationRepository>();
-
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<IBorrowService, BorrowService>();
 builder.Services.AddScoped<IFineService, FineService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-
 builder.Services.AddSingleton<IActivityLogService, ActivityLogService>();
-builder.Services.AddHttpClient<IOpenLibraryService, OpenLibraryService>();
-
-// Health check — basic ping only (no DB dependency so it never fails on startup)
+builder.Services.AddHttpClient<IOpenLibraryService, OpenLibraryService>(client => { client.Timeout = TimeSpan.FromSeconds(10); });
 builder.Services.AddHealthChecks();
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "Library Management System API",
-        Version = "v1",
-        Description = "ASP.NET Core 8 REST API for managing books, members, borrowing, reservations, and fines."
-    });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        In = ParameterLocation.Header,
-        Description = "Enter: Bearer {your JWT token}",
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
-
-builder.Services.AddCors(opt =>
-    opt.AddPolicy("AllowAll", p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
-
+builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new OpenApiInfo { Title = "Library Management System API", Version = "v1", Description = "ASP.NET Core 8 REST API for books, members, borrowing, reservations, and fines." }); c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme { In = ParameterLocation.Header, Description = "Enter: Bearer {your JWT token}", Name = "Authorization", Type = SecuritySchemeType.ApiKey, Scheme = "Bearer" }); c.AddSecurityRequirement(new OpenApiSecurityRequirement { { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() } }); });
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+builder.Services.AddCors(opt => opt.AddPolicy("Frontend", p => { if (allowedOrigins.Length == 0) p.AllowAnyOrigin(); else p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod(); }));
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    try
-    {
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        await db.Database.EnsureCreatedAsync();
-
-        foreach (var role in new[] { "Admin", "Member" })
-            if (!await roleManager.RoleExistsAsync(role))
-                await roleManager.CreateAsync(new IdentityRole(role));
-
-        if (await userManager.FindByEmailAsync("admin@library.com") == null)
-        {
-            var admin = new User
-            {
-                FullName = "Library Admin",
-                Email = "admin@library.com",
-                UserName = "admin@library.com",
-                MembershipId = "LIB-ADMIN-001"
-            };
-            await userManager.CreateAsync(admin, "Admin@123456");
-            await userManager.AddToRoleAsync(admin, "Admin");
-        }
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Database initialization failed — app will still start.");
-    }
-}
-
+using (var scope = app.Services.CreateScope()) { var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>(); try { var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(); var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); await db.Database.EnsureCreatedAsync(); foreach (var role in new[] { "Admin", "Member" }) if (!await roleManager.RoleExistsAsync(role)) await roleManager.CreateAsync(new IdentityRole(role)); if (await userManager.FindByEmailAsync("admin@library.com") == null) { var admin = new User { FullName = "Library Admin", Email = "admin@library.com", UserName = "admin@library.com", MembershipId = "LIB-ADMIN-001" }; await userManager.CreateAsync(admin, "Admin@123456"); await userManager.AddToRoleAsync(admin, "Admin"); } } catch (Exception ex) { logger.LogError(ex, "Database initialization failed — app will still start."); } }
 app.UseMiddleware<ExceptionMiddleware>();
-app.UseCors("AllowAll");
+app.UseCors("Frontend");
 app.UseSerilogRequestLogging();
-
 app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1");
-    c.RoutePrefix = "swagger";
-});
-
+app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1"); c.RoutePrefix = "swagger"; });
 app.MapGet("/", () => Results.Redirect("/swagger"));
 app.MapHealthChecks("/health");
-
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
-
+app.MapControllers().RequireRateLimiting("api");
 app.Run();
