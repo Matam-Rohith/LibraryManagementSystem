@@ -17,11 +17,13 @@ services:
           name: library-db
           property: connectionString
       - key: Jwt__Key
-        value: SuperSecretKey_LibraryMgmt_Render2024!
+        generateValue: true
       - key: Jwt__Issuer
         value: LibraryManagementSystemAPI
       - key: Jwt__Audience
         value: LibraryManagementSystemClient
+      - key: AllowedOrigins__0
+        value: https://library-management-system.onrender.com
 
 databases:
   - name: library-db
