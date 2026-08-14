@@ -51,10 +51,12 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope()) { var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>(); try { var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(); var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); await db.Database.EnsureCreatedAsync(); foreach (var role in new[] { "Admin", "Member" }) if (!await roleManager.RoleExistsAsync(role)) await roleManager.CreateAsync(new IdentityRole(role)); if (await userManager.FindByEmailAsync("admin@library.com") == null) { var admin = new User { FullName = "Library Admin", Email = "admin@library.com", UserName = "admin@library.com", MembershipId = "LIB-ADMIN-001" }; await userManager.CreateAsync(admin, "Admin@123456"); await userManager.AddToRoleAsync(admin, "Admin"); } } catch (Exception ex) { logger.LogError(ex, "Database initialization failed — app will still start."); } }
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseCors("Frontend");
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1"); c.RoutePrefix = "swagger"; });
-app.MapGet("/", () => Results.Redirect("/swagger"));
+app.MapFallbackToFile("index.html");
 app.MapHealthChecks("/health");
 app.UseRateLimiter();
 app.UseAuthentication();
