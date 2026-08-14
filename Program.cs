@@ -56,6 +56,7 @@ app.UseStaticFiles();
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "Library Management System API v1"); c.RoutePrefix = "swagger"; });
+app.MapGet("/", () => Results.Redirect("/index.html"));
 app.MapFallbackToFile("index.html");
 app.MapHealthChecks("/health");
 app.UseRateLimiter();
