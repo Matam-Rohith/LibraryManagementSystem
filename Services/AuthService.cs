@@ -32,7 +32,7 @@ public class AuthService : IAuthService
 
         var result = await _userManager.CreateAsync(user, req.Password);
         if (!result.Succeeded)
-            throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+            throw new InvalidOperationException(string.Join(", ", result.Errors.Select(e => e.Description)));
 
         var role = req.Role == "Admin" ? "Admin" : "Member";
         await _userManager.AddToRoleAsync(user, role);
@@ -75,6 +75,6 @@ public class AuthService : IAuthService
         return new AuthResponse(
             new JwtSecurityTokenHandler().WriteToken(token),
             user.Email!, user.FullName,
-            roles.FirstOrDefault() ?? "Member", expiry);
+            roles.FirstOrDefault() ?? "Member", expiry, user.Id);
     }
 }
