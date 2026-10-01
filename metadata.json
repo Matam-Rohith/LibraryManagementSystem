@@ -1,0 +1,5 @@
+{
+  "name": "Library Management System",
+  "description": "Full-stack Library Management System with book catalog, borrowing, returns, member reservations, fines, and Open Library search integration.",
+  "version": "1.0.0"
+}
